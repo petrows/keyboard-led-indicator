@@ -7,8 +7,8 @@
 / {
     aliases {
         led-caps = &led_a0;
-        led-scrl = &led_a1;
-        led-num = &led_a2;
+        led-num = &led_a1;
+        led-scrl = &led_a2;
     };
 
     leds {

@@ -1,6 +1,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/led.h>
 #include <zephyr/usb/class/usb_hid.h>
 #include <zephyr/usb/class/usb_cdc.h>
 #include <zephyr/usb/usb_device.h>
@@ -11,21 +12,34 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 static K_SEM_DEFINE(app_hid_init, 0, 1);
 static K_SEM_DEFINE(app_hid_ready, 0, 1); // main.cpp
 
-#define LED0_NODE DT_ALIAS(led0)
-#define LED_CAPS_NODE DT_ALIAS(led-caps)
+/*
+    Search device by-alias from DeviceTreee (see zephyr/board.overlay)
+    https://docs.zephyrproject.org/latest/build/dts/howtos.html#get-a-struct-device-from-a-devicetree-node
+ */
+#define LED_BUILT_IN_NODE DT_ALIAS(led0)
+#define LED_CAPS_NODE DT_ALIAS(led_caps)
+#define LED_SCROLL_NODE DT_ALIAS(led_scrl)
+#define LED_NUM_NODE DT_ALIAS(led_num)
 
 /*
- * Helper macro for initializing a gpio_dt_spec from the devicetree
- * with fallback values when the nodes are missing.
+    Helper macro for initializing a gpio_dt_spec from the devicetree
+    with fallback values when the nodes are missing.
  */
 #define GPIO_SPEC(node_id) GPIO_DT_SPEC_GET_OR(node_id, gpios, {0})
 
 /*
- * Create gpio_dt_spec structures from the devicetree.
+    Create gpio_dt_spec structures from the devicetree.
  */
-static const struct gpio_dt_spec led0 = GPIO_SPEC(LED0_NODE);
+static const struct gpio_dt_spec led_built_in = GPIO_SPEC(LED_BUILT_IN_NODE);
+// Our custom leds from device-tree:
 static const struct gpio_dt_spec led_caps = GPIO_SPEC(LED_CAPS_NODE);
+static const struct gpio_dt_spec led_scroll = GPIO_SPEC(LED_SCROLL_NODE);
+static const struct gpio_dt_spec led_num = GPIO_SPEC(LED_NUM_NODE);
 
+/*
+    Main callback function to react on different USB events
+    TODO: Add reset / reconnect on error?
+*/
 void usb_status_cb(enum usb_dc_status_code status, const uint8_t *param)
 {
     switch (status)
@@ -70,56 +84,61 @@ void usb_status_cb(enum usb_dc_status_code status, const uint8_t *param)
     }
 }
 
-// Host --> Device (LEDs)
+/*
+    Host --> Device (LEDs)
+    Callback function to react on HID events from PC,
+    test and (de)activate LEDs here.
+*/
 static void output_ready_cb(const device *kbd_dev)
 {
     static uint8_t report;
     hid_int_ep_read(kbd_dev, &report, sizeof(report), NULL);
 
-    gpio_pin_set_dt(&led0, report & HID_KBD_LED_CAPS_LOCK);
+    gpio_pin_set_dt(&led_built_in, report & HID_KBD_LED_CAPS_LOCK);
     gpio_pin_set_dt(&led_caps, report & HID_KBD_LED_CAPS_LOCK);
-
-    // if (report & HID_KBD_LED_CAPS_LOCK)
-    // {
-    //     // led::on<led::Led1>();
-    //     gpio_pin_toggle(led0.port, led0.pin);
-    // }
-    // else
-    // {
-    //     // led::off<led::Led1>();
-    // }
+    gpio_pin_set_dt(&led_scroll, report & HID_KBD_LED_SCROLL_LOCK);
+    gpio_pin_set_dt(&led_num, report & HID_KBD_LED_NUM_LOCK);
 }
 
 int main(void)
 {
-    // k_sem_take(&app_hid_init, K_FOREVER);
 
+    // Set working mode for GPIO's
+    gpio_pin_configure_dt(&led_built_in, GPIO_OUTPUT);
+    gpio_pin_configure_dt(&led_caps, GPIO_OUTPUT);
+    gpio_pin_configure_dt(&led_scroll, GPIO_OUTPUT);
+    gpio_pin_configure_dt(&led_num, GPIO_OUTPUT);
+
+    // Initial states
+    gpio_pin_set_dt(&led_built_in, 0U);
+    gpio_pin_set_dt(&led_caps, 1U);
+    gpio_pin_set_dt(&led_scroll, 1U);
+    gpio_pin_set_dt(&led_num, 1U);
+
+    // Activate USB
     int err __unused = usb_enable(usb_status_cb);
     __ASSERT(!err, "usb_enable failed");
-
-    if (!device_is_ready(led0.port))
-    {
-        LOG_ERR("LED device %s is not ready", led0.port->name);
-        return 0;
-    }
-
+    // Activate and register HID device 0 (Keyboard)
     const device *kbd_dev = device_get_binding("HID_0");
     __ASSERT_NO_MSG(kbd_dev);
-
+    // Add "Keyboard" report descriptor temaplte
     const uint8_t kbd_desc[] = HID_KEYBOARD_REPORT_DESC();
+    // We do not send any keys to PC, so we have only
+    // "out" function (event from PC to us).
     const struct hid_ops callbacks = {
         .int_out_ready = output_ready_cb,
     };
     usb_hid_register_device(kbd_dev, kbd_desc, sizeof(kbd_desc),
                             &callbacks);
-
+    // Initalize USB
     err = usb_hid_init(kbd_dev);
     __ASSERT(!err, "usb_hid_init failed");
 
-    gpio_pin_configure_dt(&led0, GPIO_OUTPUT);
-    gpio_pin_set_dt(&led0, 1U);
+    // Wait for USb activation
+    k_sem_take(&app_hid_ready, K_FOREVER);
 
-    // k_sem_give(&app_hid_init);
+    // USB Ready, built-in: ON
+    gpio_pin_set_dt(&led_built_in, 1U);
 
     while (true)
     {
