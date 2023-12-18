@@ -2,15 +2,17 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/usb/class/usb_hid.h>
+#include <zephyr/usb/class/usb_cdc.h>
 #include <zephyr/usb/usb_device.h>
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(app, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
 static K_SEM_DEFINE(app_hid_init, 0, 1);
 static K_SEM_DEFINE(app_hid_ready, 0, 1); // main.cpp
 
 #define LED0_NODE DT_ALIAS(led0)
+#define LED_CAPS_NODE DT_ALIAS(led-caps)
 
 /*
  * Helper macro for initializing a gpio_dt_spec from the devicetree
@@ -22,6 +24,7 @@ static K_SEM_DEFINE(app_hid_ready, 0, 1); // main.cpp
  * Create gpio_dt_spec structures from the devicetree.
  */
 static const struct gpio_dt_spec led0 = GPIO_SPEC(LED0_NODE);
+static const struct gpio_dt_spec led_caps = GPIO_SPEC(LED_CAPS_NODE);
 
 void usb_status_cb(enum usb_dc_status_code status, const uint8_t *param)
 {
@@ -73,7 +76,8 @@ static void output_ready_cb(const device *kbd_dev)
     static uint8_t report;
     hid_int_ep_read(kbd_dev, &report, sizeof(report), NULL);
 
-    gpio_pin_set(led0.port, led0.pin, report & HID_KBD_LED_CAPS_LOCK);
+    gpio_pin_set_dt(&led0, report & HID_KBD_LED_CAPS_LOCK);
+    gpio_pin_set_dt(&led_caps, report & HID_KBD_LED_CAPS_LOCK);
 
     // if (report & HID_KBD_LED_CAPS_LOCK)
     // {
@@ -113,7 +117,7 @@ int main(void)
     __ASSERT(!err, "usb_hid_init failed");
 
     gpio_pin_configure_dt(&led0, GPIO_OUTPUT);
-    gpio_pin_set(led0.port, led0.pin, 1U);
+    gpio_pin_set_dt(&led0, 1U);
 
     // k_sem_give(&app_hid_init);
 
