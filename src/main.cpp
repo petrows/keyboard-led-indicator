@@ -94,7 +94,9 @@ static void output_ready_cb(const device *kbd_dev)
     static uint8_t report;
     hid_int_ep_read(kbd_dev, &report, sizeof(report), NULL);
 
-    gpio_pin_set_dt(&led_built_in, report & HID_KBD_LED_CAPS_LOCK);
+    // Turn OFF built-in LED on first report
+    gpio_pin_set_dt(&led_built_in, 0U);
+
     gpio_pin_set_dt(&led_caps, report & HID_KBD_LED_CAPS_LOCK);
     gpio_pin_set_dt(&led_scroll, report & HID_KBD_LED_SCROLL_LOCK);
     gpio_pin_set_dt(&led_num, report & HID_KBD_LED_NUM_LOCK);
@@ -102,7 +104,6 @@ static void output_ready_cb(const device *kbd_dev)
 
 int main(void)
 {
-
     // Set working mode for GPIO's
     gpio_pin_configure_dt(&led_built_in, GPIO_OUTPUT);
     gpio_pin_configure_dt(&led_caps, GPIO_OUTPUT);
@@ -110,7 +111,7 @@ int main(void)
     gpio_pin_configure_dt(&led_num, GPIO_OUTPUT);
 
     // Initial states
-    gpio_pin_set_dt(&led_built_in, 0U);
+    gpio_pin_set_dt(&led_built_in, 1U);
     gpio_pin_set_dt(&led_caps, 1U);
     gpio_pin_set_dt(&led_scroll, 1U);
     gpio_pin_set_dt(&led_num, 1U);
