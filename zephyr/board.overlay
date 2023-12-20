@@ -9,6 +9,8 @@
         led-caps = &led_a0;
         led-num = &led_a1;
         led-scrl = &led_a2;
+        led-a = &led_a3;
+        led-b = &led_a4;
     };
 
     leds {
@@ -25,6 +27,14 @@
         // A2
         led_a2: led_a2 {
             gpios = < &gpioa 0x2 GPIO_ACTIVE_HIGH >;
+        };
+        // A3
+        led_a3: led_a3 {
+            gpios = < &gpioa 0x3 GPIO_ACTIVE_HIGH >;
+        };
+        // A4
+        led_a4: led_a4 {
+            gpios = < &gpioa 0x4 GPIO_ACTIVE_HIGH >;
         };
     };
 

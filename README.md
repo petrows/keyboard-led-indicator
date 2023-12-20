@@ -16,6 +16,13 @@ Based on cheap STM32 board, known as [Bluepill with Cortex M3](https://www.az-de
 
 I used J-Link Segger clone from Aliexpress to flash and debug.
 
+### Device endpoints
+
+Device has 2 HID devices:
+
+* 0: Keyboard, reads LED
+* 1: Generic HID, first endpoint input (0xF2) reads byte and toggles LED A and B, A if last bit set, else B
+
 ## Buildsystem
 
 Buildsystem is Platform.io. To build, just open this project in VSCode
@@ -37,3 +44,5 @@ In my config:
 * CapsLock -> A0, indicates russuan layout active
 * NumLock -> A1, indicates NumLock
 * ScrollLock -> A2, indicates desktop lock status
+* Led A -> A4, switched by endpoint input 0xF2
+* Led B -> A5, switched by endpoint input 0xF2

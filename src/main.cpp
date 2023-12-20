@@ -20,6 +20,9 @@ static K_SEM_DEFINE(app_hid_ready, 0, 1); // main.cpp
 #define LED_CAPS_NODE DT_ALIAS(led_caps)
 #define LED_SCROLL_NODE DT_ALIAS(led_scrl)
 #define LED_NUM_NODE DT_ALIAS(led_num)
+#define LED_A_NODE DT_ALIAS(led_a)
+#define LED_B_NODE DT_ALIAS(led_b)
+
 
 /*
     Helper macro for initializing a gpio_dt_spec from the devicetree
@@ -35,6 +38,8 @@ static const struct gpio_dt_spec led_built_in = GPIO_SPEC(LED_BUILT_IN_NODE);
 static const struct gpio_dt_spec led_caps = GPIO_SPEC(LED_CAPS_NODE);
 static const struct gpio_dt_spec led_scroll = GPIO_SPEC(LED_SCROLL_NODE);
 static const struct gpio_dt_spec led_num = GPIO_SPEC(LED_NUM_NODE);
+static const struct gpio_dt_spec led_a = GPIO_SPEC(LED_A_NODE);
+static const struct gpio_dt_spec led_b = GPIO_SPEC(LED_B_NODE);
 
 /*
     Simple HID device config - to control more LEDs
@@ -45,11 +50,11 @@ static const uint8_t hid_led_desc[] = {
     HID_COLLECTION(HID_COLLECTION_APPLICATION),
     HID_LOGICAL_MIN8(0x00),
     HID_LOGICAL_MAX16(0xFF, 0x00),
-    HID_REPORT_ID(0x01),
+    HID_REPORT_ID(0xF1),
     HID_REPORT_SIZE(8),
     HID_REPORT_COUNT(1),
     HID_USAGE(HID_USAGE_GEN_DESKTOP_UNDEFINED),
-    HID_INPUT(0x02),
+    HID_INPUT(0xF2),
     HID_END_COLLECTION,
 };
 
@@ -130,6 +135,11 @@ static void led_output_ready_cb(const device *dev)
 
     // Turn OFF built-in LED on first report
     gpio_pin_toggle_dt(&led_built_in);
+
+    // Byte 1 - status for sempapfore A/B
+    uint8_t sem_state = report & 0x01;
+    gpio_pin_set_dt(&led_a, sem_state);
+    gpio_pin_set_dt(&led_b, !sem_state);
 }
 
 int main(void)
@@ -139,12 +149,16 @@ int main(void)
     gpio_pin_configure_dt(&led_caps, GPIO_OUTPUT);
     gpio_pin_configure_dt(&led_scroll, GPIO_OUTPUT);
     gpio_pin_configure_dt(&led_num, GPIO_OUTPUT);
+    gpio_pin_configure_dt(&led_a, GPIO_OUTPUT);
+    gpio_pin_configure_dt(&led_b, GPIO_OUTPUT);
 
     // Initial states
     gpio_pin_set_dt(&led_built_in, 1U);
     gpio_pin_set_dt(&led_caps, 1U);
     gpio_pin_set_dt(&led_scroll, 1U);
     gpio_pin_set_dt(&led_num, 1U);
+    gpio_pin_set_dt(&led_a, 1U);
+    gpio_pin_set_dt(&led_b, 1U);
 
     // Activate USB
     int err __unused = usb_enable(usb_status_cb);
