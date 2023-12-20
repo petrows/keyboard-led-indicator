@@ -37,6 +37,23 @@ static const struct gpio_dt_spec led_scroll = GPIO_SPEC(LED_SCROLL_NODE);
 static const struct gpio_dt_spec led_num = GPIO_SPEC(LED_NUM_NODE);
 
 /*
+    Simple HID device config - to control more LEDs
+*/
+static const uint8_t hid_led_desc[] = {
+    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),
+    HID_USAGE(HID_USAGE_GEN_DESKTOP_UNDEFINED),
+    HID_COLLECTION(HID_COLLECTION_APPLICATION),
+    HID_LOGICAL_MIN8(0x00),
+    HID_LOGICAL_MAX16(0xFF, 0x00),
+    HID_REPORT_ID(0x01),
+    HID_REPORT_SIZE(8),
+    HID_REPORT_COUNT(1),
+    HID_USAGE(HID_USAGE_GEN_DESKTOP_UNDEFINED),
+    HID_INPUT(0x02),
+    HID_END_COLLECTION,
+};
+
+/*
     Main callback function to react on different USB events
     TODO: Add reset / reconnect on error?
 */
@@ -85,11 +102,11 @@ void usb_status_cb(enum usb_dc_status_code status, const uint8_t *param)
 }
 
 /*
-    Host --> Device (LEDs)
+    Host --> Keyboard
     Callback function to react on HID events from PC,
     test and (de)activate LEDs here.
 */
-static void output_ready_cb(const device *kbd_dev)
+static void kb_output_ready_cb(const device *kbd_dev)
 {
     static uint8_t report;
     hid_int_ep_read(kbd_dev, &report, sizeof(report), NULL);
@@ -100,6 +117,19 @@ static void output_ready_cb(const device *kbd_dev)
     gpio_pin_set_dt(&led_caps, report & HID_KBD_LED_CAPS_LOCK);
     gpio_pin_set_dt(&led_scroll, report & HID_KBD_LED_SCROLL_LOCK);
     gpio_pin_set_dt(&led_num, report & HID_KBD_LED_NUM_LOCK);
+}
+
+/*
+    Host --> Custom device 1
+    Custom command from PC
+*/
+static void led_output_ready_cb(const device *dev)
+{
+    static uint8_t report;
+    hid_int_ep_read(dev, &report, sizeof(report), NULL);
+
+    // Turn OFF built-in LED on first report
+    gpio_pin_toggle_dt(&led_built_in);
 }
 
 int main(void)
@@ -119,6 +149,7 @@ int main(void)
     // Activate USB
     int err __unused = usb_enable(usb_status_cb);
     __ASSERT(!err, "usb_enable failed");
+
     // Activate and register HID device 0 (Keyboard)
     const device *kbd_dev = device_get_binding("HID_0");
     __ASSERT_NO_MSG(kbd_dev);
@@ -126,13 +157,27 @@ int main(void)
     const uint8_t kbd_desc[] = HID_KEYBOARD_REPORT_DESC();
     // We do not send any keys to PC, so we have only
     // "out" function (event from PC to us).
-    const struct hid_ops callbacks = {
-        .int_out_ready = output_ready_cb,
+    const struct hid_ops kb_callbacks = {
+        .int_out_ready = kb_output_ready_cb,
     };
     usb_hid_register_device(kbd_dev, kbd_desc, sizeof(kbd_desc),
-                            &callbacks);
+                            &kb_callbacks);
+
+    // Activate and register HID device 1 (LED control)
+    const device *led_dev = device_get_binding("HID_1");
+    __ASSERT_NO_MSG(led_dev);
+    // We do not send any data to PC, so we have only
+    // "out" function (event from PC to us).
+    const struct hid_ops led_callbacks = {
+        .int_out_ready = led_output_ready_cb,
+    };
+    usb_hid_register_device(led_dev, hid_led_desc, sizeof(hid_led_desc),
+                            &led_callbacks);
+
     // Initalize USB
     err = usb_hid_init(kbd_dev);
+    __ASSERT(!err, "usb_hid_init failed");
+    err = usb_hid_init(led_dev);
     __ASSERT(!err, "usb_hid_init failed");
 
     // Wait for USb activation
