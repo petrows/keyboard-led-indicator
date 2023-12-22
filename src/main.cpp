@@ -49,12 +49,13 @@ static const uint8_t hid_led_desc[] = {
     HID_USAGE(HID_USAGE_GEN_DESKTOP_UNDEFINED),
     HID_COLLECTION(HID_COLLECTION_APPLICATION),
     HID_LOGICAL_MIN8(0x00),
-    HID_LOGICAL_MAX16(0xFF, 0x00),
-    HID_REPORT_ID(0xF1),
+    HID_LOGICAL_MAX8(0x01),
+    HID_REPORT_ID(0x01),
     HID_REPORT_SIZE(8),
     HID_REPORT_COUNT(1),
+    HID_OUTPUT(0x01),
     HID_USAGE(HID_USAGE_GEN_DESKTOP_UNDEFINED),
-    HID_INPUT(0xF2),
+    HID_INPUT(0x02),
     HID_END_COLLECTION,
 };
 
@@ -111,17 +112,22 @@ void usb_status_cb(enum usb_dc_status_code status, const uint8_t *param)
     Callback function to react on HID events from PC,
     test and (de)activate LEDs here.
 */
-static void kb_output_ready_cb(const device *kbd_dev)
+static void kb_output_ready_cb(const device *dev)
 {
+    uint32_t report_read = 0;
     static uint8_t report;
-    hid_int_ep_read(kbd_dev, &report, sizeof(report), NULL);
+    // We have to read whole buffer, otherwise USB may fail
+    while (true)
+    {
+        hid_int_ep_read(dev, &report, sizeof(report), &report_read);
+        if (report_read == 0) {
+            return; // No data left
+        }
 
-    // Turn OFF built-in LED on first report
-    gpio_pin_set_dt(&led_built_in, 0U);
-
-    gpio_pin_set_dt(&led_caps, report & HID_KBD_LED_CAPS_LOCK);
-    gpio_pin_set_dt(&led_scroll, report & HID_KBD_LED_SCROLL_LOCK);
-    gpio_pin_set_dt(&led_num, report & HID_KBD_LED_NUM_LOCK);
+        gpio_pin_set_dt(&led_caps, report & HID_KBD_LED_CAPS_LOCK);
+        gpio_pin_set_dt(&led_scroll, report & HID_KBD_LED_SCROLL_LOCK);
+        gpio_pin_set_dt(&led_num, report & HID_KBD_LED_NUM_LOCK);
+    }
 }
 
 /*
@@ -130,16 +136,20 @@ static void kb_output_ready_cb(const device *kbd_dev)
 */
 static void led_output_ready_cb(const device *dev)
 {
-    static uint8_t report;
-    hid_int_ep_read(dev, &report, sizeof(report), NULL);
+    uint32_t report_read = 0;
+    static uint8_t report[2];
+    // We have to read whole buffer, otherwise USB may fail
+    while (true) {
+        hid_int_ep_read(dev, report, sizeof(report), &report_read);
+        if (report_read == 0) {
+            return; // No data left
+        }
 
-    // Turn OFF built-in LED on first report
-    gpio_pin_toggle_dt(&led_built_in);
-
-    // Byte 1 - status for sempapfore A/B
-    uint8_t sem_state = report & 0x01;
-    gpio_pin_set_dt(&led_a, sem_state);
-    gpio_pin_set_dt(&led_b, !sem_state);
+        // Byte 1 - status for sempapfore A/B
+        uint8_t sem_state = report[0] & 0x01;
+        gpio_pin_set_dt(&led_a, sem_state);
+        gpio_pin_set_dt(&led_b, !sem_state);
+    }
 }
 
 int main(void)
@@ -153,16 +163,14 @@ int main(void)
     gpio_pin_configure_dt(&led_b, GPIO_OUTPUT);
 
     // Initial states
-    gpio_pin_set_dt(&led_built_in, 1U);
-    gpio_pin_set_dt(&led_caps, 1U);
-    gpio_pin_set_dt(&led_scroll, 1U);
-    gpio_pin_set_dt(&led_num, 1U);
-    gpio_pin_set_dt(&led_a, 1U);
-    gpio_pin_set_dt(&led_b, 1U);
+    gpio_pin_set_dt(&led_built_in, 0U);
+    gpio_pin_set_dt(&led_caps, 0U);
+    gpio_pin_set_dt(&led_scroll, 0U);
+    gpio_pin_set_dt(&led_num, 0U);
+    gpio_pin_set_dt(&led_a, 0U);
+    gpio_pin_set_dt(&led_b, 0U);
 
-    // Activate USB
-    int err __unused = usb_enable(usb_status_cb);
-    __ASSERT(!err, "usb_enable failed");
+    int err = 0;
 
     // Activate and register HID device 0 (Keyboard)
     const device *kbd_dev = device_get_binding("HID_0");
@@ -193,6 +201,10 @@ int main(void)
     __ASSERT(!err, "usb_hid_init failed");
     err = usb_hid_init(led_dev);
     __ASSERT(!err, "usb_hid_init failed");
+
+    // Activate USB
+     err = usb_enable(usb_status_cb);
+    __ASSERT(!err, "usb_enable failed");
 
     // Wait for USb activation
     k_sem_take(&app_hid_ready, K_FOREVER);
