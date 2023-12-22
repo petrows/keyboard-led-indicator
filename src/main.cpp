@@ -146,9 +146,9 @@ static void led_output_ready_cb(const device *dev)
         }
 
         // Byte 1 - status for sempapfore A/B
-        uint8_t sem_state = report[0] & 0x01;
-        gpio_pin_set_dt(&led_a, sem_state);
-        gpio_pin_set_dt(&led_b, !sem_state);
+        uint8_t sem_state = report[0];
+        gpio_pin_set_dt(&led_a, sem_state & 0x01);
+        gpio_pin_set_dt(&led_b, sem_state & 0x02);
     }
 }
 
