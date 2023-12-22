@@ -12,6 +12,8 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 static K_SEM_DEFINE(app_hid_init, 0, 1);
 static K_SEM_DEFINE(app_hid_ready, 0, 1); // main.cpp
 
+#define LED_REPORT_ID 0x01
+
 /*
     Search device by-alias from DeviceTreee (see zephyr/board.overlay)
     https://docs.zephyrproject.org/latest/build/dts/howtos.html#get-a-struct-device-from-a-devicetree-node
@@ -48,13 +50,13 @@ static const uint8_t hid_led_desc[] = {
     HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),
     HID_USAGE(HID_USAGE_GEN_DESKTOP_UNDEFINED),
     HID_COLLECTION(HID_COLLECTION_APPLICATION),
-    HID_LOGICAL_MIN8(0x00),
-    HID_LOGICAL_MAX16(0xFF, 0x00),
-    HID_REPORT_ID(0xF1),
-    HID_REPORT_SIZE(8),
-    HID_REPORT_COUNT(1),
-    HID_USAGE(HID_USAGE_GEN_DESKTOP_UNDEFINED),
-    HID_INPUT(0xF2),
+
+    // Define HID Input Descriptor
+    HID_USAGE_PAGE(HID_USAGE_GEN_LEDS), /* HID_USAGE_MINIMUM(Num Lock) */
+    HID_USAGE_MIN8(1),                  /* HID_USAGE_MAXIMUM(Kana) */
+    HID_USAGE_MAX8(5),                  /* HID_OUTPUT(Data,Var,Abs) */
+    HID_INPUT(0x02),
+
     HID_END_COLLECTION,
 };
 
@@ -117,7 +119,7 @@ static void kb_output_ready_cb(const device *kbd_dev)
     hid_int_ep_read(kbd_dev, &report, sizeof(report), NULL);
 
     // Turn OFF built-in LED on first report
-    gpio_pin_set_dt(&led_built_in, 0U);
+    // gpio_pin_set_dt(&led_built_in, 0U);
 
     gpio_pin_set_dt(&led_caps, report & HID_KBD_LED_CAPS_LOCK);
     gpio_pin_set_dt(&led_scroll, report & HID_KBD_LED_SCROLL_LOCK);
@@ -131,19 +133,24 @@ static void kb_output_ready_cb(const device *kbd_dev)
 static void led_output_ready_cb(const device *dev)
 {
     static uint8_t report;
-    hid_int_ep_read(dev, &report, sizeof(report), NULL);
+    int err = hid_int_ep_read(dev, &report, sizeof(report), NULL);
+
 
     // Turn OFF built-in LED on first report
     gpio_pin_toggle_dt(&led_built_in);
 
     // Byte 1 - status for sempapfore A/B
-    uint8_t sem_state = report & 0x01;
-    gpio_pin_set_dt(&led_a, sem_state);
-    gpio_pin_set_dt(&led_b, !sem_state);
+    // uint8_t sem_state = report & 0x01;
+    // gpio_pin_set_dt(&led_a, sem_state);
+    // gpio_pin_set_dt(&led_b, !sem_state);
 }
 
 int main(void)
 {
+    LOG_ERR("Main");
+
+    // LOG_PRINTK("Fuck you");
+
     // Set working mode for GPIO's
     gpio_pin_configure_dt(&led_built_in, GPIO_OUTPUT);
     gpio_pin_configure_dt(&led_caps, GPIO_OUTPUT);
@@ -160,9 +167,7 @@ int main(void)
     gpio_pin_set_dt(&led_a, 1U);
     gpio_pin_set_dt(&led_b, 1U);
 
-    // Activate USB
-    int err __unused = usb_enable(usb_status_cb);
-    __ASSERT(!err, "usb_enable failed");
+    int err = 0;
 
     // Activate and register HID device 0 (Keyboard)
     const device *kbd_dev = device_get_binding("HID_0");
@@ -194,11 +199,15 @@ int main(void)
     err = usb_hid_init(led_dev);
     __ASSERT(!err, "usb_hid_init failed");
 
+    // Activate USB
+    err = usb_enable(usb_status_cb);
+    __ASSERT(!err, "usb_enable failed");
+
     // Wait for USb activation
     k_sem_take(&app_hid_ready, K_FOREVER);
 
     // USB Ready, built-in: ON
-    gpio_pin_set_dt(&led_built_in, 1U);
+    // gpio_pin_set_dt(&led_built_in, 1U);
 
     while (true)
     {
