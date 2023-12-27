@@ -9,6 +9,7 @@ See blog posts (russian language):
 
 * [Original idea of LED indicators for desktop lock status and layout](https://petro.ws/keyboard-indicator)
 * [Extend with this DIY device](https://petro.ws/diy-usb-keyboard-led)
+* [Using this device to indicate layout and lock as Railroad model](https://mysku.club/blog/diy/98606.html)
 
 ## Hardware
 
