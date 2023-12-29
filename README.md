@@ -22,7 +22,7 @@ I used J-Link Segger clone from Aliexpress to flash and debug.
 Device has 2 HID devices:
 
 * 0: Keyboard, reads LED
-* 1: Generic HID, first endpoint input (0xF2) reads byte and toggles LED A and B, A if last bit set, else B
+* 1: Generic HID, first endpoint input (0x01) seel "Custom HID endpoint protocol" below
 
 ## Buildsystem
 
@@ -45,5 +45,32 @@ In my config:
 * CapsLock -> A0, indicates russuan layout active
 * NumLock -> A1, indicates NumLock
 * ScrollLock -> A2, indicates desktop lock status
-* Led A -> A4, switched by endpoint input 0xF2
-* Led B -> A5, switched by endpoint input 0xF2
+* Led A -> A3, switched by endpoint input 0x01
+* Led B -> A4, switched by endpoint input 0x01
+* Led C -> A5, switched by endpoint input 0x01
+
+## Custom HID endpoint protocol
+
+Custom endpoint 0x01 reads 2 bytes:
+
+* Byte 0: Command ID
+* Byte 1: Command data
+
+### Command to switch LED channel
+
+* Command ID: ``0x01``
+* Command data:
+    * Bit 0: LED A state
+    * Bit 1: LED B state
+    * Bit 2: LED C state
+
+Example:
+
+```bash
+# Switch LED A ON, others OFF
+echo -ne '\x01\x01' > /dev/hidraw-led-indicator
+# Switch all leds ON
+echo -ne '\x01\x07' > /dev/hidraw-led-indicator
+# Switch all leds OFF
+echo -ne '\x01\x00' > /dev/hidraw-led-indicator
+```

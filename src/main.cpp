@@ -13,6 +13,13 @@ static K_SEM_DEFINE(app_hid_init, 0, 1);
 static K_SEM_DEFINE(app_hid_ready, 0, 1); // main.cpp
 
 /*
+    Commands to custom HID endpoint
+*/
+enum hid_custom_command {
+    CMD_SWITCH_LED = 0x01, // Switch LED (A, B, C)
+};
+
+/*
     Search device by-alias from DeviceTreee (see zephyr/board.overlay)
     https://docs.zephyrproject.org/latest/build/dts/howtos.html#get-a-struct-device-from-a-devicetree-node
  */
@@ -22,6 +29,7 @@ static K_SEM_DEFINE(app_hid_ready, 0, 1); // main.cpp
 #define LED_NUM_NODE DT_ALIAS(led_num)
 #define LED_A_NODE DT_ALIAS(led_a)
 #define LED_B_NODE DT_ALIAS(led_b)
+#define LED_C_NODE DT_ALIAS(led_c)
 
 
 /*
@@ -40,6 +48,7 @@ static const struct gpio_dt_spec led_scroll = GPIO_SPEC(LED_SCROLL_NODE);
 static const struct gpio_dt_spec led_num = GPIO_SPEC(LED_NUM_NODE);
 static const struct gpio_dt_spec led_a = GPIO_SPEC(LED_A_NODE);
 static const struct gpio_dt_spec led_b = GPIO_SPEC(LED_B_NODE);
+static const struct gpio_dt_spec led_c = GPIO_SPEC(LED_C_NODE);
 
 /*
     Simple HID device config - to control more LEDs
@@ -145,10 +154,14 @@ static void led_output_ready_cb(const device *dev)
             return; // No data left
         }
 
-        // Byte 1 - status for sempapfore A/B
-        uint8_t sem_state = report[0];
-        gpio_pin_set_dt(&led_a, sem_state & 0x01);
-        gpio_pin_set_dt(&led_b, sem_state & 0x02);
+        // Byte 0 - command
+        if (report[0] == CMD_SWITCH_LED) {
+            // Byte 1 - status for sempapfore A/B
+            uint8_t sem_state = report[1];
+            gpio_pin_set_dt(&led_a, sem_state & 0x01);
+            gpio_pin_set_dt(&led_b, sem_state & 0x02);
+            gpio_pin_set_dt(&led_c, sem_state & 0x04);
+        }
     }
 }
 
@@ -161,6 +174,7 @@ int main(void)
     gpio_pin_configure_dt(&led_num, GPIO_OUTPUT);
     gpio_pin_configure_dt(&led_a, GPIO_OUTPUT);
     gpio_pin_configure_dt(&led_b, GPIO_OUTPUT);
+    gpio_pin_configure_dt(&led_c, GPIO_OUTPUT);
 
     // Initial states
     gpio_pin_set_dt(&led_built_in, 0U);
@@ -169,6 +183,7 @@ int main(void)
     gpio_pin_set_dt(&led_num, 0U);
     gpio_pin_set_dt(&led_a, 0U);
     gpio_pin_set_dt(&led_b, 0U);
+    gpio_pin_set_dt(&led_c, 0U);
 
     int err = 0;
 

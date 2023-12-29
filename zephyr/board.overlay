@@ -11,6 +11,7 @@
         led-scrl = &led_a2;
         led-a = &led_a3;
         led-b = &led_a4;
+        led-c = &led_a5;
     };
 
     leds {
@@ -35,6 +36,10 @@
         // A4
         led_a4: led_a4 {
             gpios = < &gpioa 0x4 GPIO_ACTIVE_HIGH >;
+        };
+        // A5
+        led_a5: led_a5 {
+            gpios = < &gpioa 0x5 GPIO_ACTIVE_HIGH >;
         };
     };
 
