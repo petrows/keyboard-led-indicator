@@ -24,6 +24,14 @@ Device has 2 HID devices:
 * 0: Keyboard, reads LED
 * 1: Generic HID, first endpoint input (0x01) seel "Custom HID endpoint protocol" below
 
+### UDEV rules
+
+See file ``00-udev-device.rules`` provided in repo, copy to ``/etc/udev/rules.d/`` folder.
+It will create 2 device symlinks (to interface 1 - generic HID):
+
+* Generic ``/dev/hidraw-led-indicator`` for each connected
+* Explicit ``/dev/hidraw-led-indicator-<serial-number>`` for each connected
+
 ## Buildsystem
 
 Buildsystem is Platform.io. To build, just open this project in VSCode
