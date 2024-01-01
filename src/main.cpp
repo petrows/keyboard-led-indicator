@@ -13,6 +13,13 @@ static K_SEM_DEFINE(app_hid_init, 0, 1);
 static K_SEM_DEFINE(app_hid_ready, 0, 1); // main.cpp
 
 /*
+    Timeout control
+*/
+atomic_t usb_data_sec;
+
+#define USB_MAX_TIMEOUT_SEC 600
+
+/*
     Commands to custom HID endpoint
 */
 enum hid_custom_command {
@@ -30,7 +37,6 @@ enum hid_custom_command {
 #define LED_A_NODE DT_ALIAS(led_a)
 #define LED_B_NODE DT_ALIAS(led_b)
 #define LED_C_NODE DT_ALIAS(led_c)
-
 
 /*
     Helper macro for initializing a gpio_dt_spec from the devicetree
@@ -123,6 +129,8 @@ void usb_status_cb(enum usb_dc_status_code status, const uint8_t *param)
 */
 static void kb_output_ready_cb(const device *dev)
 {
+    atomic_set(&usb_data_sec, 0); // Reset wait counter
+
     uint32_t report_read = 0;
     static uint8_t report;
     // We have to read whole buffer, otherwise USB may fail
@@ -145,6 +153,8 @@ static void kb_output_ready_cb(const device *dev)
 */
 static void led_output_ready_cb(const device *dev)
 {
+    atomic_set(&usb_data_sec, 0); // Reset wait counter
+
     uint32_t report_read = 0;
     static uint8_t report[2];
     // We have to read whole buffer, otherwise USB may fail
@@ -176,7 +186,17 @@ int main(void)
     gpio_pin_configure_dt(&led_b, GPIO_OUTPUT);
     gpio_pin_configure_dt(&led_c, GPIO_OUTPUT);
 
-    // Initial states
+    // Initial states: LED test
+    gpio_pin_set_dt(&led_built_in, 1U);
+    gpio_pin_set_dt(&led_caps, 1U);
+    gpio_pin_set_dt(&led_scroll, 1U);
+    gpio_pin_set_dt(&led_num, 1U);
+    gpio_pin_set_dt(&led_a, 1U);
+    gpio_pin_set_dt(&led_b, 1U);
+    gpio_pin_set_dt(&led_c, 1U);
+
+    k_sleep(K_SECONDS(1));
+
     gpio_pin_set_dt(&led_built_in, 0U);
     gpio_pin_set_dt(&led_caps, 0U);
     gpio_pin_set_dt(&led_scroll, 0U);
@@ -229,7 +249,13 @@ int main(void)
 
     while (true)
     {
+        if (usb_data_sec >= USB_MAX_TIMEOUT_SEC) {
+            gpio_pin_set_dt(&led_a, 0U);
+            gpio_pin_toggle_dt(&led_b);
+            gpio_pin_set_dt(&led_c, 0U);
+        }
         k_sleep(K_SECONDS(1));
+        atomic_inc(&usb_data_sec);
     }
 
     return 0;
