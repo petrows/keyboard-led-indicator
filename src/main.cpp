@@ -129,8 +129,6 @@ void usb_status_cb(enum usb_dc_status_code status, const uint8_t *param)
 */
 static void kb_output_ready_cb(const device *dev)
 {
-    atomic_set(&usb_data_sec, 0); // Reset wait counter
-
     uint32_t report_read = 0;
     static uint8_t report;
     // We have to read whole buffer, otherwise USB may fail
